@@ -1,4 +1,4 @@
-package com.example.android_16.ui
+package com.example.android_16.uii
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*

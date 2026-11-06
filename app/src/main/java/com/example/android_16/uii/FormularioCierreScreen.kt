@@ -1,81 +1,95 @@
-package com.example.android_16.ui
+package com.example.android_16.uii
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.android_16.OrdenTrabajo
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormularioCierreScreen(
-    otId: String,
-    onFinalizar: () -> Unit
+    ot: OrdenTrabajo,
+    onGuardarOActualizar: (diagnostico: String, actividades: String, fotoUrl: String?, horaCierre: String) -> Unit,
+    onVolver: () -> Unit
 ) {
-    var diagnostico by remember { mutableStateOf("") }
-    var actividades by remember { mutableStateOf("") }
-    var fotoTomada by remember { mutableStateOf(false) }
+    var diagnostico by remember { mutableStateOf(ot.diagnostico) }
+    var actividades by remember { mutableStateOf(ot.actividades) }
+    var fotoCargada by remember { mutableStateOf(ot.fotoEvidenciaUrl != null) }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Cierre de Orden - $otId") }) }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            OutlinedTextField(
-                value = diagnostico,
-                onValueChange = { diagnostico = it },
-                label = { Text("Diagnóstico Técnico") },
-                modifier = Modifier.fillMaxWidth()
-            )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = if (ot.diagnostico.isEmpty()) "Registrar Cierre: ${ot.id}" else "Editar Registro: ${ot.id}",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = actividades,
-                onValueChange = { actividades = it },
-                label = { Text("Actividades Realizadas") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text("Evidencia Fotográfica", style = MaterialTheme.typography.titleMedium)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Captura/adjunto de evidencia fotográfica[cite: 2, 3]
-            OutlinedButton(
-                onClick = { fotoTomada = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = if (fotoTomada) Icons.Default.CheckCircle else Icons.Default.CameraAlt,
-                    contentDescription = null,
-                    tint = if (fotoTomada) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (fotoTomada) "Foto Adjuntada Correctamente" else "Simular Tomar Foto de Evidencia")
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(text = "Cliente: ${ot.cliente}", fontWeight = FontWeight.SemiBold)
+                Text(text = "Equipo: ${ot.equipo}")
+                Text(text = "Hora de Check-In: ${ot.checkInHora ?: "No registrada"}")
             }
+        }
 
-            Spacer(modifier = Modifier.height(32.dp))
+        OutlinedTextField(
+            value = diagnostico,
+            onValueChange = { diagnostico = it },
+            label = { Text("Diagnóstico Técnico") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3
+        )
 
+        OutlinedTextField(
+            value = actividades,
+            onValueChange = { actividades = it },
+            label = { Text("Actividades Realizadas y Repuestos") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "Evidencia Fotográfica", fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { fotoCargada = true }) {
+                    Text(text = if (fotoCargada) "✓ Evidencia Adjuntada" else "Capturar / Adjuntar Foto")
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(onClick = onVolver, modifier = Modifier.weight(1f)) {
+                Text("Cancelar")
+            }
             Button(
-                onClick = onFinalizar,
-                enabled = diagnostico.isNotEmpty() && fotoTomada,
-                modifier = Modifier.fillMaxWidth()
+                onClick = {
+                    onGuardarOActualizar(
+                        diagnostico,
+                        actividades,
+                        if (fotoCargada) "foto_${ot.id}.jpg" else null,
+                        "11:30 AM"
+                    )
+                },
+                modifier = Modifier.weight(1f),
+                enabled = diagnostico.isNotEmpty() && actividades.isNotEmpty()
             ) {
-                Text("Cerrar Orden y Enviar (Check-Out)")
+                Text(if (ot.diagnostico.isEmpty()) "Guardar Cierre" else "Actualizar Registro")
             }
         }
     }

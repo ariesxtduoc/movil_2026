@@ -1,4 +1,4 @@
-package com.example.android_16.navigation
+package com.example.android_16.navigaton
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -8,11 +8,12 @@ import androidx.compose.material.icons.filled.SupervisorAccount
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.example.android_16.listaOrdenesPrueba
-import com.example.android_16.ui.*
+import com.example.android_16.ui.theme.OtViewModel
+import com.example.android_16.uii.*
 
 sealed class Screen(val route: String) {
     object ListaOT : Screen("lista_ot")
@@ -27,7 +28,7 @@ sealed class Screen(val route: String) {
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(otViewModel: OtViewModel = viewModel()) {
     val navController = rememberNavController()
 
     Scaffold(
@@ -61,8 +62,10 @@ fun AppNavigation() {
         ) {
             composable(Screen.ListaOT.route) {
                 ListaOtScreen(
-                    ordenes = listaOrdenesPrueba,
-                    onOrdenSelect = { id -> navController.navigate(Screen.DetalleOT.createRoute(id)) }
+                    ordenes = otViewModel.ordenes,
+                    onOrdenSelect = { id ->
+                        navController.navigate(Screen.DetalleOT.createRoute(id))
+                    }
                 )
             }
 
@@ -71,16 +74,19 @@ fun AppNavigation() {
                 arguments = listOf(navArgument("otId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val otId = backStackEntry.arguments?.getString("otId")
-                val orden = listaOrdenesPrueba.find { it.id == otId }
-                DetalleOtScreen(
-                    orden = orden,
-                    onIniciarCheckIn = { },
-                    onIrAFormulario = {
-                        if (otId != null) {
-                            navController.navigate(Screen.FormularioCierre.createRoute(otId))
+                val orden = otViewModel.ordenes.find { it.id == otId }
+
+                if (orden != null) {
+                    DetalleOtScreen(
+                        orden = orden,
+                        onIniciarCheckIn = {
+                            otViewModel.registrarCheckIn(orden.id, "10:00 AM")
+                        },
+                        onIrAFormulario = {
+                            navController.navigate(Screen.FormularioCierre.createRoute(orden.id))
                         }
-                    }
-                )
+                    )
+                }
             }
 
             composable(
@@ -88,13 +94,24 @@ fun AppNavigation() {
                 arguments = listOf(navArgument("otId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val otId = backStackEntry.arguments?.getString("otId") ?: ""
-                FormularioCierreScreen(
-                    otId = otId,
-                    onFinalizar = {
-                        listaOrdenesPrueba.find { it.id == otId }?.estado = "Completado"
-                        navController.popBackStack(Screen.ListaOT.route, inclusive = false)
-                    }
-                )
+                val orden = otViewModel.ordenes.find { it.id == otId }
+
+                if (orden != null) {
+                    FormularioCierreScreen(
+                        ot = orden,
+                        onGuardarOActualizar = { diagnostico, actividades, fotoUrl, horaCierre ->
+                            otViewModel.guardarOActualizarOrden(
+                                id = otId,
+                                diagnostico = diagnostico,
+                                actividades = actividades,
+                                fotoUrl = fotoUrl,
+                                checkOutHora = horaCierre
+                            )
+                            navController.popBackStack(Screen.ListaOT.route, inclusive = false)
+                        },
+                        onVolver = { navController.popBackStack() }
+                    )
+                }
             }
 
             composable(Screen.Jefatura.route) { JefaturaScreen() }

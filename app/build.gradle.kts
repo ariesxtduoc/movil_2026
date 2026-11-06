@@ -5,15 +5,11 @@ plugins {
 
 android {
     namespace = "com.example.android_16"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.android_16"
-        minSdk = 36
+        minSdk = 26 // <-- Actualizado a 26 para solucionar el error de adaptive-icon
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"

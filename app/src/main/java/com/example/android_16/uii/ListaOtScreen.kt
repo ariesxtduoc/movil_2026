@@ -35,7 +35,7 @@ fun ListaOtScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Gestión de Órdenes ACIS",
+            text = "Gestión de Órdenes ACIS.",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 12.dp)

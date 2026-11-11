@@ -12,8 +12,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.example.android_16.ui.screens.ClienteScreen
+import com.example.android_16.ui.screens.DetalleOtScreen
+import com.example.android_16.ui.screens.FormularioCierreScreen
+import com.example.android_16.ui.screens.JefaturaScreen
+import com.example.android_16.ui.screens.ListaOtScreen
 import com.example.android_16.ui.theme.OtViewModel
-import com.example.android_16.uii.*
 
 sealed class Screen(val route: String) {
     object ListaOT : Screen("lista_ot")

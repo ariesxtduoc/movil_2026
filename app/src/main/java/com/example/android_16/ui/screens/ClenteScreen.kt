@@ -1,4 +1,4 @@
-package com.example.android_16.uii
+package com.example.android_16.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -19,12 +19,13 @@ fun ClienteScreen() {
             Text("Órdenes Pendientes de Conformidad", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Validación de conformidad del cliente[cite: 2]
+            // Validación de conformidad del cliente
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("OT-203: Preventivo Anual", style = MaterialTheme.typography.titleMedium)
-                    Text("Local: Centro Distribución San Pedro")
-                    Text("Técnico: Juan Pérez")
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Local: Centro Distribución San Pedro", style = MaterialTheme.typography.bodyMedium)
+                    Text("Técnico: Juan Pérez", style = MaterialTheme.typography.bodyMedium)
 
                     Spacer(modifier = Modifier.height(12.dp))
 

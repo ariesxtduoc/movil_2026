@@ -1,4 +1,4 @@
-package com.example.android_16.uii
+package com.example.android_16.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -17,13 +17,14 @@ fun JefaturaScreen() {
             Text("Control de Operaciones", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Panel para verificar cumplimiento de SLA contratados[cite: 1, 3]
+            // Panel para verificar cumplimiento de SLA contratados
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Cumplimiento Global de SLA", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text("92% de órdenes atendidas a tiempo", style = MaterialTheme.typography.headlineMedium, color = Color(0xFF1565C0))
                 }
             }

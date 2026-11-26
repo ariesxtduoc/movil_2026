@@ -44,22 +44,20 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
     val uiState: StateFlow<OrdenUiState> = _uiState.asStateFlow()
 
     fun sincronizarOrdenes() {
+        if (_uiState.value.isSyncing) return
+        _uiState.update { it.copy(isSyncing = true, error = null) }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isSyncing = true, error = null) }
-            val result = repository.sincronizarOrdenes()
-            result.fold(
-                onSuccess = {
-                    _uiState.update { it.copy(isSyncing = false) }
-                },
-                onFailure = { e ->
+            try {
+                val result = repository.sincronizarOrdenes()
+                result.onFailure { e ->
                     _uiState.update {
-                        it.copy(
-                            isSyncing = false,
-                            error = e.message ?: "No se pudo sincronizar"
-                        )
+                        it.copy(error = e.message ?: "No se pudo sincronizar")
                     }
                 }
-            )
+            } finally {
+                _uiState.update { it.copy(isSyncing = false) }
+            }
         }
     }
 
@@ -91,228 +89,243 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
         fotoBytes: ByteArray?,
         onSuccess: () -> Unit
     ) {
+        if (_uiState.value.isLoading) return
+
         if (codigo.isBlank() || titulo.isBlank() || local.isBlank()) {
             _uiState.update { it.copy(error = "Completa código, título y local") }
             return
         }
 
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null, mensaje = null) }
+        // Bloqueo inmediato antes de lanzar la corrutina para evitar doble envío
+        _uiState.update { it.copy(isLoading = true, error = null, mensaje = null) }
 
-            var fotoUrl: String? = null
-            if (fotoBytes != null) {
-                val uploadResult = repository.subirEvidencia(fotoBytes, codigo)
-                uploadResult.fold(
-                    onSuccess = { url -> fotoUrl = url },
+        viewModelScope.launch {
+            var creadaConExito = false
+            try {
+                var fotoUrl: String? = null
+                if (fotoBytes != null) {
+                    val uploadResult = repository.subirEvidencia(fotoBytes, codigo)
+                    uploadResult.fold(
+                        onSuccess = { url -> fotoUrl = url },
+                        onFailure = { e ->
+                            _uiState.update {
+                                it.copy(error = e.message ?: "No se pudo subir la foto")
+                            }
+                            return@launch
+                        }
+                    )
+                }
+
+                val request = OrdenTrabajoRequest(
+                    codigo = codigo.trim(),
+                    titulo = titulo.trim(),
+                    descripcion = descripcion.trim(),
+                    local = local.trim(),
+                    estado = "Pendiente",
+                    tecnicoId = tecnicoId,
+                    tecnicoNombre = tecnicoNombre,
+                    latitud = latitud,
+                    longitud = longitud,
+                    fotoUrl = fotoUrl,
+                    firmadoCliente = false
+                )
+
+                val result = repository.crearOrden(request)
+                result.fold(
+                    onSuccess = {
+                        _uiState.update {
+                            it.copy(mensaje = "Orden creada correctamente")
+                        }
+                        creadaConExito = true
+                    },
                     onFailure = { e ->
                         _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                error = e.message ?: "No se pudo subir la foto"
-                            )
+                            it.copy(error = e.message ?: "Error al crear la orden")
                         }
-                        return@launch
                     }
                 )
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
             }
 
-            val request = OrdenTrabajoRequest(
-                codigo = codigo.trim(),
-                titulo = titulo.trim(),
-                descripcion = descripcion.trim(),
-                local = local.trim(),
-                estado = "Pendiente",
-                tecnicoId = tecnicoId,
-                tecnicoNombre = tecnicoNombre,
-                latitud = latitud,
-                longitud = longitud,
-                fotoUrl = fotoUrl,
-                firmadoCliente = false
-            )
-
-            val result = repository.crearOrden(request)
-            result.fold(
-                onSuccess = {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            mensaje = "Orden creada correctamente"
-                        )
-                    }
-                    onSuccess()
-                },
-                onFailure = { e ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.message ?: "Error al crear la orden"
-                        )
-                    }
-                }
-            )
+            if (creadaConExito) {
+                onSuccess()
+            }
         }
     }
 
     fun actualizarEstado(ordenId: String, nuevoEstado: String) {
+        if (_uiState.value.isLoading) return
+        _uiState.update { it.copy(isLoading = true, error = null) }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val result = repository.actualizarOrden(
-                id = ordenId,
-                cambios = mapOf("estado" to nuevoEstado)
-            )
-            result.fold(
-                onSuccess = { actualizada ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            ordenSeleccionada = actualizada,
-                            mensaje = "Estado actualizado a $nuevoEstado"
-                        )
+            try {
+                val result = repository.actualizarOrden(
+                    id = ordenId,
+                    cambios = mapOf("estado" to nuevoEstado)
+                )
+                result.fold(
+                    onSuccess = { actualizada ->
+                        _uiState.update {
+                            it.copy(
+                                ordenSeleccionada = actualizada,
+                                mensaje = "Estado actualizado a $nuevoEstado"
+                            )
+                        }
+                    },
+                    onFailure = { e ->
+                        _uiState.update {
+                            it.copy(error = e.message ?: "Error al actualizar estado")
+                        }
                     }
-                },
-                onFailure = { e ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.message ?: "Error al actualizar estado"
-                        )
-                    }
-                }
-            )
+                )
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
     fun subirYGuardarEvidencia(orden: OrdenTrabajo, imageBytes: ByteArray) {
+        if (_uiState.value.isLoading) return
+        _uiState.update { it.copy(isLoading = true, error = null) }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val uploadResult = repository.subirEvidencia(imageBytes, orden.codigo)
-            uploadResult.fold(
-                onSuccess = { url ->
-                    val updateResult = repository.actualizarOrden(
-                        id = orden.id,
-                        cambios = mapOf("foto_url" to url)
-                    )
-                    updateResult.fold(
-                        onSuccess = { actualizada ->
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    ordenSeleccionada = actualizada,
-                                    mensaje = "Evidencia fotográfica guardada"
-                                )
-                            }
-                        },
-                        onFailure = { e ->
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    error = e.message ?: "Foto subida, pero falló guardar enlace"
-                                )
-                            }
-                        }
-                    )
-                },
-                onFailure = { e ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.message ?: "Error al subir la evidencia"
+            try {
+                val uploadResult = repository.subirEvidencia(imageBytes, orden.codigo)
+                uploadResult.fold(
+                    onSuccess = { url ->
+                        val updateResult = repository.actualizarOrden(
+                            id = orden.id,
+                            cambios = mapOf("foto_url" to url)
                         )
+                        updateResult.fold(
+                            onSuccess = { actualizada ->
+                                _uiState.update {
+                                    it.copy(
+                                        ordenSeleccionada = actualizada,
+                                        mensaje = "Evidencia fotográfica guardada"
+                                    )
+                                }
+                            },
+                            onFailure = { e ->
+                                _uiState.update {
+                                    it.copy(error = e.message ?: "Foto subida, pero falló guardar enlace")
+                                }
+                            }
+                        )
+                    },
+                    onFailure = { e ->
+                        _uiState.update {
+                            it.copy(error = e.message ?: "Error al subir la evidencia")
+                        }
                     }
-                }
-            )
+                )
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
     fun actualizarUbicacion(orden: OrdenTrabajo, latitud: Double, longitud: Double) {
+        if (_uiState.value.isLoading) return
+        _uiState.update { it.copy(isLoading = true, error = null) }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val result = repository.actualizarOrden(
-                id = orden.id,
-                cambios = mapOf(
-                    "latitud" to latitud,
-                    "longitud" to longitud
+            try {
+                val result = repository.actualizarOrden(
+                    id = orden.id,
+                    cambios = mapOf(
+                        "latitud" to latitud,
+                        "longitud" to longitud
+                    )
                 )
-            )
-            result.fold(
-                onSuccess = { actualizada ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            ordenSeleccionada = actualizada,
-                            mensaje = "Ubicación GPS registrada"
-                        )
+                result.fold(
+                    onSuccess = { actualizada ->
+                        _uiState.update {
+                            it.copy(
+                                ordenSeleccionada = actualizada,
+                                mensaje = "Ubicación GPS registrada"
+                            )
+                        }
+                        consultarClima(latitud, longitud)
+                    },
+                    onFailure = { e ->
+                        _uiState.update {
+                            it.copy(error = e.message ?: "Error al guardar ubicación")
+                        }
                     }
-                    consultarClima(latitud, longitud)
-                },
-                onFailure = { e ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.message ?: "Error al guardar ubicación"
-                        )
-                    }
-                }
-            )
+                )
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
     fun firmarOrdenComoCliente(orden: OrdenTrabajo) {
+        if (_uiState.value.isLoading) return
+        _uiState.update { it.copy(isLoading = true, error = null) }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val result = repository.actualizarOrden(
-                id = orden.id,
-                cambios = mapOf(
-                    "firmado_cliente" to true,
-                    "estado" to "Completada"
+            try {
+                val result = repository.actualizarOrden(
+                    id = orden.id,
+                    cambios = mapOf(
+                        "firmado_cliente" to true,
+                        "estado" to "Completada"
+                    )
                 )
-            )
-            result.fold(
-                onSuccess = { actualizada ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            ordenSeleccionada = actualizada,
-                            mensaje = "Conformidad firmada por el cliente"
-                        )
+                result.fold(
+                    onSuccess = { actualizada ->
+                        _uiState.update {
+                            it.copy(
+                                ordenSeleccionada = actualizada,
+                                mensaje = "Conformidad firmada por el cliente"
+                            )
+                        }
+                    },
+                    onFailure = { e ->
+                        _uiState.update {
+                            it.copy(error = e.message ?: "Error al firmar la orden")
+                        }
                     }
-                },
-                onFailure = { e ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.message ?: "Error al firmar la orden"
-                        )
-                    }
-                }
-            )
+                )
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
     fun eliminarOrden(ordenId: String, onSuccess: () -> Unit) {
+        if (_uiState.value.isLoading) return
+        _uiState.update { it.copy(isLoading = true, error = null) }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val result = repository.eliminarOrden(ordenId)
-            result.fold(
-                onSuccess = {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            ordenSeleccionada = null,
-                            mensaje = "Orden eliminada"
-                        )
+            var eliminadaConExito = false
+            try {
+                val result = repository.eliminarOrden(ordenId)
+                result.fold(
+                    onSuccess = {
+                        _uiState.update {
+                            it.copy(
+                                ordenSeleccionada = null,
+                                mensaje = "Orden eliminada"
+                            )
+                        }
+                        eliminadaConExito = true
+                    },
+                    onFailure = { e ->
+                        _uiState.update {
+                            it.copy(error = e.message ?: "Error al eliminar la orden")
+                        }
                     }
-                    onSuccess()
-                },
-                onFailure = { e ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.message ?: "Error al eliminar la orden"
-                        )
-                    }
-                }
-            )
+                )
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
+
+            if (eliminadaConExito) {
+                onSuccess()
+            }
         }
     }
 

@@ -83,6 +83,9 @@ fun NuevaOTScreen(
     var fotoUriTemporal by remember { mutableStateOf<Uri?>(null) }
     var fotoCapturadaUri by remember { mutableStateOf<Uri?>(null) }
     var fotoBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var procesandoFoto by remember { mutableStateOf(false) }
+
+    val ocupado = uiState.isLoading || procesandoFoto
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
@@ -125,8 +128,14 @@ fun NuevaOTScreen(
         val uri = fotoUriTemporal
         if (exito && uri != null) {
             fotoCapturadaUri = uri
+            fotoBytes = null
             scope.launch {
-                fotoBytes = HardwareHelper.uriABytesComprimidos(context, uri)
+                procesandoFoto = true
+                try {
+                    fotoBytes = HardwareHelper.uriABytesComprimidos(context, uri)
+                } finally {
+                    procesandoFoto = false
+                }
             }
         }
     }
@@ -151,7 +160,10 @@ fun NuevaOTScreen(
             TopAppBar(
                 title = { Text("Nueva Orden de Trabajo", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onVolver) {
+                    IconButton(
+                        onClick = onVolver,
+                        enabled = !uiState.isLoading
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 }
@@ -170,6 +182,7 @@ fun NuevaOTScreen(
                 value = codigo,
                 onValueChange = { codigo = it },
                 label = { Text("Código OT *") },
+                enabled = !uiState.isLoading,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -178,6 +191,7 @@ fun NuevaOTScreen(
                 value = titulo,
                 onValueChange = { titulo = it },
                 label = { Text("Título del trabajo *") },
+                enabled = !uiState.isLoading,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -186,6 +200,7 @@ fun NuevaOTScreen(
                 value = local,
                 onValueChange = { local = it },
                 label = { Text("Local / Sucursal *") },
+                enabled = !uiState.isLoading,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -194,6 +209,7 @@ fun NuevaOTScreen(
                 value = descripcion,
                 onValueChange = { descripcion = it },
                 label = { Text("Descripción de labores") },
+                enabled = !uiState.isLoading,
                 minLines = 3,
                 maxLines = 5,
                 modifier = Modifier.fillMaxWidth()
@@ -251,7 +267,7 @@ fun NuevaOTScreen(
                                 )
                             }
                         },
-                        enabled = !obteniendoGps,
+                        enabled = !obteniendoGps && !uiState.isLoading,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         if (obteniendoGps) {
@@ -305,11 +321,18 @@ fun NuevaOTScreen(
                                 cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                             }
                         },
+                        enabled = !ocupado,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (fotoCapturadaUri != null) "Tomar otra foto" else "Tomar fotografía")
+                        if (procesandoFoto) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Comprimiendo foto...")
+                        } else {
+                            Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (fotoCapturadaUri != null) "Tomar otra foto" else "Tomar fotografía")
+                        }
                     }
                 }
             }
@@ -331,12 +354,12 @@ fun NuevaOTScreen(
                         onSuccess = onVolver
                     )
                 },
-                enabled = !uiState.isLoading,
+                enabled = !ocupado,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
-                if (uiState.isLoading) {
+                if (ocupado) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
@@ -344,7 +367,7 @@ fun NuevaOTScreen(
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("Guardando...")
+                        Text(if (procesandoFoto) "Procesando foto..." else "Guardando...")
                     }
                 } else {
                     Text("Guardar Orden de Trabajo")

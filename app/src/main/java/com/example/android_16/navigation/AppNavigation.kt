@@ -1,125 +1,131 @@
 package com.example.android_16.navigation
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Engineering
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.SupervisorAccount
-import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.android_16.ui.screens.ClienteScreen
-import com.example.android_16.ui.screens.DetalleOtScreen
-import com.example.android_16.ui.screens.FormularioCierreScreen
-import com.example.android_16.ui.screens.JefaturaScreen
-import com.example.android_16.ui.screens.ListaOtScreen
-import com.example.android_16.ui.theme.OtViewModel
+import com.example.android_16.ui.screens.DetalleOTScreen
+import com.example.android_16.ui.screens.LoginScreen
+import com.example.android_16.ui.screens.NuevaOTScreen
+import com.example.android_16.ui.screens.TecnicoScreen
+import com.example.android_16.viewmodel.AuthViewModel
+import com.example.android_16.viewmodel.OrdenTrabajoViewModel
 
 sealed class Screen(val route: String) {
-    object ListaOT : Screen("lista_ot")
-    object DetalleOT : Screen("detalle_ot/{otId}") {
-        fun createRoute(otId: String) = "detalle_ot/$otId"
+    data object Login : Screen("login")
+    data object Tecnico : Screen("tecnico")
+    data object Cliente : Screen("cliente")
+    data object NuevaOT : Screen("nueva_ot")
+    data object DetalleOT : Screen("detalle_ot/{ordenId}") {
+        fun createRoute(ordenId: String) = "detalle_ot/$ordenId"
     }
-    object FormularioCierre : Screen("formulario_cierre/{otId}") {
-        fun createRoute(otId: String) = "formulario_cierre/$otId"
-    }
-    object Jefatura : Screen("jefatura")
-    object Cliente : Screen("cliente")
 }
 
 @Composable
-fun AppNavigation(otViewModel: OtViewModel = viewModel()) {
+fun AppNavigation(
+    authViewModel: AuthViewModel = viewModel(),
+    ordenViewModel: OrdenTrabajoViewModel = viewModel()
+) {
     val navController = rememberNavController()
+    val authState by authViewModel.uiState.collectAsState()
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Engineering, contentDescription = null) },
-                    label = { Text("Técnico") },
-                    selected = false,
-                    onClick = { navController.navigate(Screen.ListaOT.route) }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.SupervisorAccount, contentDescription = null) },
-                    label = { Text("Jefatura") },
-                    selected = false,
-                    onClick = { navController.navigate(Screen.Jefatura.route) }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    label = { Text("Cliente") },
-                    selected = false,
-                    onClick = { navController.navigate(Screen.Cliente.route) }
-                )
+    val startDestination = remember {
+        if (authState.isLoggedIn && authState.perfil != null) {
+            if (authState.perfil!!.rol.equals("tecnico", ignoreCase = true)) {
+                Screen.Tecnico.route
+            } else {
+                Screen.Cliente.route
             }
+        } else {
+            Screen.Login.route
         }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.ListaOT.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Screen.ListaOT.route) {
-                ListaOtScreen(
-                    ordenes = otViewModel.ordenes,
-                    onOrdenSelect = { id ->
-                        navController.navigate(Screen.DetalleOT.createRoute(id))
+    }
+
+    val cerrarSesionYVolverALogin: () -> Unit = {
+        ordenViewModel.limpiarCacheAlSalir()
+        authViewModel.cerrarSesion()
+        navController.navigate(Screen.Login.route) {
+            popUpTo(0) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
+    NavHost(
+        navController = navController,
+        startDestination = startDestination
+    ) {
+        composable(Screen.Login.route) {
+            LoginScreen(
+                authViewModel = authViewModel,
+                onLoginSuccess = { rol ->
+                    val destino = if (rol.equals("tecnico", ignoreCase = true)) {
+                        Screen.Tecnico.route
+                    } else {
+                        Screen.Cliente.route
                     }
-                )
-            }
-
-            composable(
-                route = Screen.DetalleOT.route,
-                arguments = listOf(navArgument("otId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val otId = backStackEntry.arguments?.getString("otId")
-                val orden = otViewModel.ordenes.find { it.id == otId }
-
-                if (orden != null) {
-                    DetalleOtScreen(
-                        orden = orden,
-                        onIniciarCheckIn = {
-                            otViewModel.registrarCheckIn(orden.id, "10:00 AM")
-                        },
-                        onIrAFormulario = {
-                            navController.navigate(Screen.FormularioCierre.createRoute(orden.id))
-                        }
-                    )
+                    navController.navigate(destino) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
-            }
+            )
+        }
 
-            composable(
-                route = Screen.FormularioCierre.route,
-                arguments = listOf(navArgument("otId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val otId = backStackEntry.arguments?.getString("otId") ?: ""
-                val orden = otViewModel.ordenes.find { it.id == otId }
+        composable(Screen.Tecnico.route) {
+            TecnicoScreen(
+                perfil = authState.perfil,
+                ordenViewModel = ordenViewModel,
+                onNuevaOrden = {
+                    navController.navigate(Screen.NuevaOT.route)
+                },
+                onSeleccionarOrden = { ordenId ->
+                    navController.navigate(Screen.DetalleOT.createRoute(ordenId))
+                },
+                onCerrarSesion = cerrarSesionYVolverALogin
+            )
+        }
 
-                if (orden != null) {
-                    FormularioCierreScreen(
-                        ot = orden,
-                        onGuardarOActualizar = { diagnostico, actividades, fotoUrl, horaCierre ->
-                            otViewModel.guardarOActualizarOrden(
-                                id = otId,
-                                diagnostico = diagnostico,
-                                actividades = actividades,
-                                fotoUrl = fotoUrl,
-                                checkOutHora = horaCierre
-                            )
-                            navController.popBackStack(Screen.ListaOT.route, inclusive = false)
-                        },
-                        onVolver = { navController.popBackStack() }
-                    )
+        composable(Screen.Cliente.route) {
+            ClienteScreen(
+                perfil = authState.perfil,
+                ordenViewModel = ordenViewModel,
+                onSeleccionarOrden = { ordenId ->
+                    navController.navigate(Screen.DetalleOT.createRoute(ordenId))
+                },
+                onCerrarSesion = cerrarSesionYVolverALogin
+            )
+        }
+
+        composable(Screen.NuevaOT.route) {
+            NuevaOTScreen(
+                perfil = authState.perfil,
+                ordenViewModel = ordenViewModel,
+                onVolver = {
+                    navController.popBackStack()
                 }
-            }
+            )
+        }
 
-            composable(Screen.Jefatura.route) { JefaturaScreen() }
-            composable(Screen.Cliente.route) { ClienteScreen() }
+        composable(
+            route = Screen.DetalleOT.route,
+            arguments = listOf(navArgument("ordenId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val ordenId = backStackEntry.arguments?.getString("ordenId") ?: return@composable
+            DetalleOTScreen(
+                ordenId = ordenId,
+                perfil = authState.perfil,
+                ordenViewModel = ordenViewModel,
+                onVolver = {
+                    navController.popBackStack()
+                }
+            )
         }
     }
 }

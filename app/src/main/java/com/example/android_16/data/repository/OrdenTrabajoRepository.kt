@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import retrofit2.Response
 
 class OrdenTrabajoRepository(
     private val dao: OrdenTrabajoDao,
@@ -24,8 +26,31 @@ class OrdenTrabajoRepository(
     private val weatherApi = RetrofitClient.weatherApi
 
     private fun obtenerBearer(): String {
-        val token = sessionManager.obtenerToken() ?: SupabaseConfig.SUPABASE_KEY
+        val token = sessionManager.obtenerToken()?.takeIf { it.isNotBlank() }
+            ?: SupabaseConfig.SUPABASE_KEY
         return "Bearer $token"
+    }
+
+    private fun extraerErrorSupabase(response: Response<*>): String {
+        val raw = try {
+            response.errorBody()?.string().orEmpty()
+        } catch (_: Exception) {
+            ""
+        }
+        val detalle = try {
+            val json = JSONObject(raw)
+            json.optString("message")
+                .ifBlank { json.optString("error_description") }
+                .ifBlank { json.optString("hint") }
+                .ifBlank { raw }
+        } catch (_: Exception) {
+            raw
+        }
+        return if (detalle.isNotBlank()) {
+            "(${response.code()}) $detalle"
+        } else {
+            "(${response.code()})"
+        }
     }
 
     fun observarOrdenes(): Flow<List<OrdenTrabajo>> {
@@ -47,7 +72,7 @@ class OrdenTrabajoRepository(
                 dao.insertarTodas(remotas.map { it.toEntity() })
                 Result.success(Unit)
             } else {
-                Result.failure(Exception("No se pudieron sincronizar las órdenes (${response.code()})"))
+                Result.failure(Exception("Error al sincronizar ${extraerErrorSupabase(response)}"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Sin conexión: mostrando datos guardados localmente"))
@@ -56,9 +81,12 @@ class OrdenTrabajoRepository(
 
     suspend fun crearOrden(request: OrdenTrabajoRequest): Result<OrdenTrabajo> = withContext(Dispatchers.IO) {
         try {
+            val requestLimpio = request.copy(
+                tecnicoId = request.tecnicoId?.takeIf { it.isNotBlank() }
+            )
             val response = supabaseApi.crearOrden(
                 bearerToken = obtenerBearer(),
-                orden = request
+                orden = requestLimpio
             )
             if (response.isSuccessful) {
                 val creada = response.body()?.firstOrNull()
@@ -66,7 +94,7 @@ class OrdenTrabajoRepository(
                 dao.insertarUna(creada.toEntity())
                 Result.success(creada)
             } else {
-                Result.failure(Exception("Error al crear la orden (${response.code()})"))
+                Result.failure(Exception("Error al crear orden ${extraerErrorSupabase(response)}"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Error de red al crear orden: ${e.localizedMessage}"))
@@ -89,7 +117,7 @@ class OrdenTrabajoRepository(
                 dao.insertarUna(actualizada.toEntity())
                 Result.success(actualizada)
             } else {
-                Result.failure(Exception("Error al actualizar la orden (${response.code()})"))
+                Result.failure(Exception("Error al actualizar ${extraerErrorSupabase(response)}"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Error de red al actualizar: ${e.localizedMessage}"))
@@ -106,7 +134,7 @@ class OrdenTrabajoRepository(
                 dao.eliminarPorId(id)
                 Result.success(Unit)
             } else {
-                Result.failure(Exception("Error al eliminar la orden (${response.code()})"))
+                Result.failure(Exception("Error al eliminar ${extraerErrorSupabase(response)}"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Error de red al eliminar: ${e.localizedMessage}"))
@@ -131,7 +159,7 @@ class OrdenTrabajoRepository(
             if (response.isSuccessful) {
                 Result.success(SupabaseConfig.buildPublicFotoUrl(fileName))
             } else {
-                Result.failure(Exception("Error al subir evidencia (${response.code()})"))
+                Result.failure(Exception("Error al subir foto ${extraerErrorSupabase(response)}"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Error de red al subir la foto: ${e.localizedMessage}"))

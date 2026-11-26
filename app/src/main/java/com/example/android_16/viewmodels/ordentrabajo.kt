@@ -1,4 +1,4 @@
-package com.example.android_16.viewmodel
+package com.example.android_16.viewmodels
 
 data class OrdenTrabajo(
     val id: String,

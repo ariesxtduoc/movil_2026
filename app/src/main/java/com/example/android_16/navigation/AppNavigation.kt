@@ -1,4 +1,4 @@
-package com.example.android_16.navigaton
+package com.example.android_16.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons

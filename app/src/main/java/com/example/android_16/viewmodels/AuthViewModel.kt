@@ -98,13 +98,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun cerrarSesion() {
+    fun cerrarSesion(motivo: String? = null) {
         repository.cerrarSesion()
         _uiState.value = AuthUiState(
             isLoading = false,
             perfil = null,
             isLoggedIn = false,
-            error = null
+            error = motivo
         )
     }
 

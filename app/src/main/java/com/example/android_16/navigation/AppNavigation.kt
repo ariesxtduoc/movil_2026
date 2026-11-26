@@ -1,6 +1,7 @@
 package com.example.android_16.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -35,6 +36,7 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
     val authState by authViewModel.uiState.collectAsState()
+    val ordenState by ordenViewModel.uiState.collectAsState()
 
     val startDestination = remember {
         if (authState.isLoggedIn && authState.perfil != null) {
@@ -48,12 +50,18 @@ fun AppNavigation(
         }
     }
 
-    val cerrarSesionYVolverALogin: () -> Unit = {
+    val cerrarSesionYVolverALogin: (String?) -> Unit = { motivo ->
         ordenViewModel.limpiarCacheAlSalir()
-        authViewModel.cerrarSesion()
+        authViewModel.cerrarSesion(motivo)
         navController.navigate(Screen.Login.route) {
             popUpTo(0) { inclusive = true }
             launchSingleTop = true
+        }
+    }
+
+    LaunchedEffect(ordenState.sesionExpirada) {
+        if (ordenState.sesionExpirada) {
+            cerrarSesionYVolverALogin("Tu sesión ha expirado. Inicia sesión nuevamente.")
         }
     }
 
@@ -88,7 +96,7 @@ fun AppNavigation(
                 onSeleccionarOrden = { ordenId ->
                     navController.navigate(Screen.DetalleOT.createRoute(ordenId))
                 },
-                onCerrarSesion = cerrarSesionYVolverALogin
+                onCerrarSesion = { cerrarSesionYVolverALogin(null) }
             )
         }
 
@@ -99,7 +107,7 @@ fun AppNavigation(
                 onSeleccionarOrden = { ordenId ->
                     navController.navigate(Screen.DetalleOT.createRoute(ordenId))
                 },
-                onCerrarSesion = cerrarSesionYVolverALogin
+                onCerrarSesion = { cerrarSesionYVolverALogin(null) }
             )
         }
 

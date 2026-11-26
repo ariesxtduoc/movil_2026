@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.android_16.data.local.AppDatabase
 import com.example.android_16.data.local.SessionManager
 import com.example.android_16.data.repository.OrdenTrabajoRepository
+import com.example.android_16.data.repository.SesionExpiradaException
 import com.example.android_16.model.CurrentWeather
 import com.example.android_16.model.OrdenTrabajo
 import com.example.android_16.model.OrdenTrabajoRequest
@@ -24,7 +25,8 @@ data class OrdenUiState(
     val climaActual: CurrentWeather? = null,
     val cargandoClima: Boolean = false,
     val mensaje: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val sesionExpirada: Boolean = false
 )
 
 class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(application) {
@@ -43,6 +45,21 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
     private val _uiState = MutableStateFlow(OrdenUiState())
     val uiState: StateFlow<OrdenUiState> = _uiState.asStateFlow()
 
+    private fun manejarFallo(e: Throwable, fallback: String) {
+        if (e is SesionExpiradaException) {
+            _uiState.update {
+                it.copy(
+                    sesionExpirada = true,
+                    error = e.message
+                )
+            }
+        } else {
+            _uiState.update {
+                it.copy(error = e.message ?: fallback)
+            }
+        }
+    }
+
     fun sincronizarOrdenes() {
         if (_uiState.value.isSyncing) return
         _uiState.update { it.copy(isSyncing = true, error = null) }
@@ -51,9 +68,7 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
             try {
                 val result = repository.sincronizarOrdenes()
                 result.onFailure { e ->
-                    _uiState.update {
-                        it.copy(error = e.message ?: "No se pudo sincronizar")
-                    }
+                    manejarFallo(e, "No se pudo sincronizar")
                 }
             } finally {
                 _uiState.update { it.copy(isSyncing = false) }
@@ -96,7 +111,6 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
             return
         }
 
-        // Bloqueo inmediato antes de lanzar la corrutina para evitar doble envío
         _uiState.update { it.copy(isLoading = true, error = null, mensaje = null) }
 
         viewModelScope.launch {
@@ -108,9 +122,7 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
                     uploadResult.fold(
                         onSuccess = { url -> fotoUrl = url },
                         onFailure = { e ->
-                            _uiState.update {
-                                it.copy(error = e.message ?: "No se pudo subir la foto")
-                            }
+                            manejarFallo(e, "No se pudo subir la foto")
                             return@launch
                         }
                     )
@@ -139,9 +151,7 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
                         creadaConExito = true
                     },
                     onFailure = { e ->
-                        _uiState.update {
-                            it.copy(error = e.message ?: "Error al crear la orden")
-                        }
+                        manejarFallo(e, "Error al crear la orden")
                     }
                 )
             } finally {
@@ -174,9 +184,7 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
                         }
                     },
                     onFailure = { e ->
-                        _uiState.update {
-                            it.copy(error = e.message ?: "Error al actualizar estado")
-                        }
+                        manejarFallo(e, "Error al actualizar estado")
                     }
                 )
             } finally {
@@ -208,16 +216,12 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
                                 }
                             },
                             onFailure = { e ->
-                                _uiState.update {
-                                    it.copy(error = e.message ?: "Foto subida, pero falló guardar enlace")
-                                }
+                                manejarFallo(e, "Foto subida, pero falló guardar enlace")
                             }
                         )
                     },
                     onFailure = { e ->
-                        _uiState.update {
-                            it.copy(error = e.message ?: "Error al subir la evidencia")
-                        }
+                        manejarFallo(e, "Error al subir la evidencia")
                     }
                 )
             } finally {
@@ -250,9 +254,7 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
                         consultarClima(latitud, longitud)
                     },
                     onFailure = { e ->
-                        _uiState.update {
-                            it.copy(error = e.message ?: "Error al guardar ubicación")
-                        }
+                        manejarFallo(e, "Error al guardar ubicación")
                     }
                 )
             } finally {
@@ -284,9 +286,7 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
                         }
                     },
                     onFailure = { e ->
-                        _uiState.update {
-                            it.copy(error = e.message ?: "Error al firmar la orden")
-                        }
+                        manejarFallo(e, "Error al firmar la orden")
                     }
                 )
             } finally {
@@ -314,9 +314,7 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
                         eliminadaConExito = true
                     },
                     onFailure = { e ->
-                        _uiState.update {
-                            it.copy(error = e.message ?: "Error al eliminar la orden")
-                        }
+                        manejarFallo(e, "Error al eliminar la orden")
                     }
                 )
             } finally {

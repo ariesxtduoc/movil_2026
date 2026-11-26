@@ -18,6 +18,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import retrofit2.Response
 
+class SesionExpiradaException(
+    message: String = "Tu sesión ha expirado. Inicia sesión nuevamente."
+) : Exception(message)
+
 class OrdenTrabajoRepository(
     private val dao: OrdenTrabajoDao,
     private val sessionManager: SessionManager
@@ -31,12 +35,17 @@ class OrdenTrabajoRepository(
         return "Bearer $token"
     }
 
-    private fun extraerErrorSupabase(response: Response<*>): String {
+    private fun manejarErrorHttp(response: Response<*>, accion: String): Exception {
         val raw = try {
             response.errorBody()?.string().orEmpty()
         } catch (_: Exception) {
             ""
         }
+
+        if (response.code() == 401 || raw.contains("JWT expired", ignoreCase = true)) {
+            return SesionExpiradaException()
+        }
+
         val detalle = try {
             val json = JSONObject(raw)
             json.optString("message")
@@ -46,11 +55,9 @@ class OrdenTrabajoRepository(
         } catch (_: Exception) {
             raw
         }
-        return if (detalle.isNotBlank()) {
-            "(${response.code()}) $detalle"
-        } else {
-            "(${response.code()})"
-        }
+
+        val sufijo = if (detalle.isNotBlank()) "(${response.code()}) $detalle" else "(${response.code()})"
+        return Exception("Error al $accion $sufijo")
     }
 
     fun observarOrdenes(): Flow<List<OrdenTrabajo>> {
@@ -72,7 +79,7 @@ class OrdenTrabajoRepository(
                 dao.insertarTodas(remotas.map { it.toEntity() })
                 Result.success(Unit)
             } else {
-                Result.failure(Exception("Error al sincronizar ${extraerErrorSupabase(response)}"))
+                Result.failure(manejarErrorHttp(response, "sincronizar"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Sin conexión: mostrando datos guardados localmente"))
@@ -94,7 +101,7 @@ class OrdenTrabajoRepository(
                 dao.insertarUna(creada.toEntity())
                 Result.success(creada)
             } else {
-                Result.failure(Exception("Error al crear orden ${extraerErrorSupabase(response)}"))
+                Result.failure(manejarErrorHttp(response, "crear orden"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Error de red al crear orden: ${e.localizedMessage}"))
@@ -117,7 +124,7 @@ class OrdenTrabajoRepository(
                 dao.insertarUna(actualizada.toEntity())
                 Result.success(actualizada)
             } else {
-                Result.failure(Exception("Error al actualizar ${extraerErrorSupabase(response)}"))
+                Result.failure(manejarErrorHttp(response, "actualizar"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Error de red al actualizar: ${e.localizedMessage}"))
@@ -134,7 +141,7 @@ class OrdenTrabajoRepository(
                 dao.eliminarPorId(id)
                 Result.success(Unit)
             } else {
-                Result.failure(Exception("Error al eliminar ${extraerErrorSupabase(response)}"))
+                Result.failure(manejarErrorHttp(response, "eliminar"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Error de red al eliminar: ${e.localizedMessage}"))
@@ -159,7 +166,7 @@ class OrdenTrabajoRepository(
             if (response.isSuccessful) {
                 Result.success(SupabaseConfig.buildPublicFotoUrl(fileName))
             } else {
-                Result.failure(Exception("Error al subir foto ${extraerErrorSupabase(response)}"))
+                Result.failure(manejarErrorHttp(response, "subir foto"))
             }
         } catch (e: Exception) {
             Result.failure(Exception("Error de red al subir la foto: ${e.localizedMessage}"))

@@ -18,15 +18,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -58,6 +62,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.android_16.model.OrdenTrabajo
@@ -232,6 +239,8 @@ fun EditarPerfilDialog(
     val authState by authViewModel.uiState.collectAsState()
     var nombre by remember { mutableStateOf(perfil.nombre) }
     var rolSeleccionado by remember { mutableStateOf(perfil.rolEnum.clave) }
+    var nuevaPassword by remember { mutableStateOf("") }
+    var mostrarPassword by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = {
@@ -270,6 +279,45 @@ fun EditarPerfilDialog(
                     supportingText = {
                         authState.errorNombre?.let { Text(it) }
                     },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = nuevaPassword,
+                    onValueChange = {
+                        nuevaPassword = it
+                        authViewModel.limpiarErrorCampo("password")
+                    },
+                    label = { Text("Nueva contraseña (opcional)") },
+                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (authState.errorPassword != null) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = "Error",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                            IconButton(onClick = { mostrarPassword = !mostrarPassword }) {
+                                Icon(
+                                    imageVector = if (mostrarPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = "Mostrar contraseña"
+                                )
+                            }
+                        }
+                    },
+                    isError = authState.errorPassword != null,
+                    supportingText = {
+                        authState.errorPassword?.let { Text(it) }
+                    },
+                    visualTransformation = if (mostrarPassword) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -319,7 +367,12 @@ fun EditarPerfilDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    authViewModel.actualizarPerfil(nombre, rolSeleccionado, onSuccess = onGuardado)
+                    authViewModel.actualizarPerfil(
+                        nombre = nombre,
+                        rol = rolSeleccionado,
+                        nuevaPassword = nuevaPassword,
+                        onSuccess = onGuardado
+                    )
                 },
                 enabled = !authState.isLoading
             ) {

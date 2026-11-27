@@ -173,22 +173,30 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun recuperarPassword(email: String, onSuccess: () -> Unit) {
+    fun recuperarPassword(email: String, nuevaPassword: String, onSuccess: () -> Unit) {
         val errEmail = validarEmail(email)
-        if (errEmail != null) {
-            _uiState.update { it.copy(errorEmail = errEmail) }
+        val errPass = validarPassword(nuevaPassword)
+        if (errEmail != null || errPass != null) {
+            _uiState.update {
+                it.copy(
+                    errorEmail = errEmail,
+                    errorPassword = errPass
+                )
+            }
             return
         }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isRecovering = true, error = null, mensaje = null) }
-            val result = repository.recuperarPassword(email)
+            val result = repository.recuperarPassword(email, nuevaPassword)
             result.fold(
                 onSuccess = {
                     _uiState.update {
                         it.copy(
                             isRecovering = false,
-                            mensaje = "Si el correo existe, recibirás un enlace de recuperación."
+                            errorEmail = null,
+                            errorPassword = null,
+                            mensaje = "Contraseña restablecida. Ya puedes iniciar sesión con tu nueva clave."
                         )
                     }
                     onSuccess()
@@ -197,7 +205,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.update {
                         it.copy(
                             isRecovering = false,
-                            error = e.message ?: "No se pudo procesar la recuperación"
+                            errorEmail = e.message ?: "No se pudo restablecer la contraseña"
                         )
                     }
                 }
@@ -205,16 +213,27 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun actualizarPerfil(nombre: String, rol: String, onSuccess: (Perfil) -> Unit) {
+    fun actualizarPerfil(
+        nombre: String,
+        rol: String,
+        nuevaPassword: String = "",
+        onSuccess: (Perfil) -> Unit
+    ) {
         val errNombre = validarNombre(nombre)
-        if (errNombre != null) {
-            _uiState.update { it.copy(errorNombre = errNombre) }
+        val errPass = if (nuevaPassword.isNotBlank()) validarPassword(nuevaPassword) else null
+        if (errNombre != null || errPass != null) {
+            _uiState.update {
+                it.copy(
+                    errorNombre = errNombre,
+                    errorPassword = errPass
+                )
+            }
             return
         }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null, mensaje = null) }
-            val result = repository.actualizarPerfil(nombre, rol)
+            val result = repository.actualizarPerfil(nombre, rol, nuevaPassword)
             result.fold(
                 onSuccess = { actualizado ->
                     _uiState.update {
@@ -222,7 +241,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                             isLoading = false,
                             perfil = actualizado,
                             errorNombre = null,
-                            mensaje = "Perfil actualizado correctamente"
+                            errorPassword = null,
+                            mensaje = if (nuevaPassword.isNotBlank()) {
+                                "Perfil y contraseña actualizados"
+                            } else {
+                                "Perfil actualizado correctamente"
+                            }
                         )
                     }
                     onSuccess(actualizado)

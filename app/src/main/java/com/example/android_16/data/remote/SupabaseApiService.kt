@@ -14,6 +14,7 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -30,8 +31,14 @@ interface SupabaseApiService {
         @Body request: AuthRequest
     ): Response<AuthResponse>
 
-    @POST("auth/v1/recover")
-    suspend fun recuperarPassword(
+    @POST("rest/v1/rpc/restablecer_clave_usuario")
+    suspend fun restablecerClaveRpc(
+        @Body body: Map<String, String>
+    ): Response<Boolean>
+
+    @PUT("auth/v1/user")
+    suspend fun actualizarPasswordUsuario(
+        @Header("Authorization") bearerToken: String,
         @Body body: Map<String, String>
     ): Response<ResponseBody>
 

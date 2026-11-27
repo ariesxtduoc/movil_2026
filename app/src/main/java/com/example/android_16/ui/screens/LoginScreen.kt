@@ -75,6 +75,8 @@ fun LoginScreen(
 
     var mostrarRecuperar by remember { mutableStateOf(false) }
     var emailRecuperacion by remember { mutableStateOf("") }
+    var nuevaPasswordRecuperacion by remember { mutableStateOf("") }
+    var mostrarPassRecuperacion by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isLoggedIn, uiState.perfil) {
         if (uiState.isLoggedIn && uiState.perfil != null) {
@@ -94,14 +96,14 @@ fun LoginScreen(
             onDismissRequest = {
                 if (!uiState.isRecovering) {
                     mostrarRecuperar = false
-                    authViewModel.limpiarErrorCampo("email")
+                    authViewModel.limpiarTodosLosErrores()
                 }
             },
-            title = { Text("Recuperar contraseña") },
+            title = { Text("Restablecer contraseña") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Ingresa el correo asociado a tu cuenta para enviarte un enlace de restablecimiento.",
+                        text = "Ingresa el correo de tu cuenta y define tu nueva contraseña.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     OutlinedTextField(
@@ -110,7 +112,7 @@ fun LoginScreen(
                             emailRecuperacion = it
                             authViewModel.limpiarErrorCampo("email")
                         },
-                        label = { Text("Correo electrónico") },
+                        label = { Text("Correo de la cuenta") },
                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                         trailingIcon = {
                             if (uiState.errorEmail != null) {
@@ -129,12 +131,57 @@ fun LoginScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    OutlinedTextField(
+                        value = nuevaPasswordRecuperacion,
+                        onValueChange = {
+                            nuevaPasswordRecuperacion = it
+                            authViewModel.limpiarErrorCampo("password")
+                        },
+                        label = { Text("Nueva contraseña") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (uiState.errorPassword != null) {
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        contentDescription = "Error",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                                IconButton(onClick = { mostrarPassRecuperacion = !mostrarPassRecuperacion }) {
+                                    Icon(
+                                        imageVector = if (mostrarPassRecuperacion) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = "Mostrar contraseña"
+                                    )
+                                }
+                            }
+                        },
+                        isError = uiState.errorPassword != null,
+                        supportingText = {
+                            uiState.errorPassword?.let { Text(it) }
+                        },
+                        visualTransformation = if (mostrarPassRecuperacion) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        authViewModel.recuperarPassword(emailRecuperacion) {
+                        authViewModel.recuperarPassword(
+                            email = emailRecuperacion,
+                            nuevaPassword = nuevaPasswordRecuperacion
+                        ) {
+                            email = emailRecuperacion
+                            password = ""
+                            nuevaPasswordRecuperacion = ""
                             mostrarRecuperar = false
                         }
                     },
@@ -146,7 +193,7 @@ fun LoginScreen(
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Text("Enviar enlace")
+                        Text("Cambiar clave")
                     }
                 }
             },
@@ -154,7 +201,7 @@ fun LoginScreen(
                 TextButton(
                     onClick = {
                         mostrarRecuperar = false
-                        authViewModel.limpiarErrorCampo("email")
+                        authViewModel.limpiarTodosLosErrores()
                     },
                     enabled = !uiState.isRecovering
                 ) {
@@ -311,6 +358,7 @@ fun LoginScreen(
                         TextButton(
                             onClick = {
                                 emailRecuperacion = email
+                                nuevaPasswordRecuperacion = ""
                                 authViewModel.limpiarTodosLosErrores()
                                 mostrarRecuperar = true
                             },

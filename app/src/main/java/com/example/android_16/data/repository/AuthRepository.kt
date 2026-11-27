@@ -93,20 +93,33 @@ class AuthRepository(
         }
     }
 
-    suspend fun recuperarPassword(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun recuperarPassword(email: String, nuevaPassword: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val response = api.recuperarPassword(mapOf("email" to email.trim()))
+            val response = api.restablecerClaveRpc(
+                mapOf(
+                    "p_email" to email.trim(),
+                    "p_nueva_clave" to nuevaPassword
+                )
+            )
             if (response.isSuccessful) {
-                Result.success(Unit)
+                if (response.body() == true) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception("No existe una cuenta registrada con ese correo"))
+                }
             } else {
-                Result.failure(Exception("No se pudo enviar el correo de recuperación (${response.code()})"))
+                Result.failure(Exception("No se pudo restablecer la contraseña (${response.code()})"))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Error de conexión al recuperar contraseña: ${e.localizedMessage}"))
+            Result.failure(Exception("Error de conexión al restablecer contraseña: ${e.localizedMessage}"))
         }
     }
 
-    suspend fun actualizarPerfil(nombre: String, rol: String): Result<Perfil> = withContext(Dispatchers.IO) {
+    suspend fun actualizarPerfil(
+        nombre: String,
+        rol: String,
+        nuevaPassword: String = ""
+    ): Result<Perfil> = withContext(Dispatchers.IO) {
         try {
             val token = sessionManager.obtenerToken()?.takeIf { it.isNotBlank() }
                 ?: return@withContext Result.failure(SesionExpiradaException())
@@ -122,16 +135,32 @@ class AuthRepository(
                 )
             )
 
-            if (response.isSuccessful) {
-                val actualizado = response.body()?.firstOrNull()
-                    ?: perfilActual.copy(nombre = nombre.trim(), rol = rol)
-                sessionManager.guardarSesion(token, actualizado)
-                Result.success(actualizado)
-            } else if (response.code() == 401) {
-                Result.failure(SesionExpiradaException())
-            } else {
-                Result.failure(Exception("Error al actualizar perfil (${response.code()})"))
+            if (!response.isSuccessful) {
+                return@withContext if (response.code() == 401) {
+                    Result.failure(SesionExpiradaException())
+                } else {
+                    Result.failure(Exception("Error al actualizar perfil (${response.code()})"))
+                }
             }
+
+            if (nuevaPassword.isNotBlank()) {
+                val passResponse = api.actualizarPasswordUsuario(
+                    bearerToken = "Bearer $token",
+                    body = mapOf("password" to nuevaPassword)
+                )
+                if (!passResponse.isSuccessful) {
+                    return@withContext if (passResponse.code() == 401) {
+                        Result.failure(SesionExpiradaException())
+                    } else {
+                        Result.failure(Exception("Perfil guardado, pero falló el cambio de clave (${passResponse.code()})"))
+                    }
+                }
+            }
+
+            val actualizado = response.body()?.firstOrNull()
+                ?: perfilActual.copy(nombre = nombre.trim(), rol = rol)
+            sessionManager.guardarSesion(token, actualizado)
+            Result.success(actualizado)
         } catch (e: Exception) {
             Result.failure(Exception("Error de conexión al actualizar perfil: ${e.localizedMessage}"))
         }

@@ -5,6 +5,7 @@ import com.example.android_16.data.local.SessionManager
 import com.example.android_16.data.local.toEntity
 import com.example.android_16.data.local.toModel
 import com.example.android_16.data.remote.RetrofitClient
+import com.example.android_16.data.remote.SupabaseApiService
 import com.example.android_16.data.remote.SupabaseConfig
 import com.example.android_16.model.CurrentWeather
 import com.example.android_16.model.OrdenTrabajo
@@ -24,9 +25,9 @@ class SesionExpiradaException(
 
 class OrdenTrabajoRepository(
     private val dao: OrdenTrabajoDao,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val supabaseApi: SupabaseApiService = RetrofitClient.supabaseApi
 ) {
-    private val supabaseApi = RetrofitClient.supabaseApi
     private val weatherApi = RetrofitClient.weatherApi
 
     private fun obtenerBearer(): String {

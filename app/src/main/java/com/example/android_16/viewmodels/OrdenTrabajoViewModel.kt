@@ -26,14 +26,18 @@ data class OrdenUiState(
     val cargandoClima: Boolean = false,
     val mensaje: String? = null,
     val error: String? = null,
-    val sesionExpirada: Boolean = false
+    val sesionExpirada: Boolean = false,
+    val errorCodigo: String? = null,
+    val errorTitulo: String? = null,
+    val errorLocal: String? = null
 )
 
 class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getInstance(application)
     private val sessionManager = SessionManager(application)
-    private val repository = OrdenTrabajoRepository(database.ordenTrabajoDao(), sessionManager)
+    internal var repository: OrdenTrabajoRepository =
+        OrdenTrabajoRepository(database.ordenTrabajoDao(), sessionManager)
 
     val ordenes: StateFlow<List<OrdenTrabajo>> = repository.observarOrdenes()
         .stateIn(
@@ -44,6 +48,35 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
 
     private val _uiState = MutableStateFlow(OrdenUiState())
     val uiState: StateFlow<OrdenUiState> = _uiState.asStateFlow()
+
+    fun validarCodigo(codigo: String): String? =
+        if (codigo.isBlank()) "El código de orden es obligatorio" else null
+
+    fun validarTitulo(titulo: String): String? = when {
+        titulo.isBlank() -> "El título del trabajo es obligatorio"
+        titulo.trim().length < 4 -> "Describe el trabajo con al menos 4 caracteres"
+        else -> null
+    }
+
+    fun validarLocal(local: String): String? =
+        if (local.isBlank()) "El local o sucursal es obligatorio" else null
+
+    fun limpiarErrorCampo(campo: String) {
+        _uiState.update {
+            when (campo) {
+                "codigo" -> it.copy(errorCodigo = null)
+                "titulo" -> it.copy(errorTitulo = null)
+                "local" -> it.copy(errorLocal = null)
+                else -> it
+            }
+        }
+    }
+
+    fun limpiarErroresFormulario() {
+        _uiState.update {
+            it.copy(errorCodigo = null, errorTitulo = null, errorLocal = null, error = null)
+        }
+    }
 
     private fun manejarFallo(e: Throwable, fallback: String) {
         if (e is SesionExpiradaException) {
@@ -106,12 +139,31 @@ class OrdenTrabajoViewModel(application: Application) : AndroidViewModel(applica
     ) {
         if (_uiState.value.isLoading) return
 
-        if (codigo.isBlank() || titulo.isBlank() || local.isBlank()) {
-            _uiState.update { it.copy(error = "Completa código, título y local") }
+        val errCodigo = validarCodigo(codigo)
+        val errTitulo = validarTitulo(titulo)
+        val errLocal = validarLocal(local)
+
+        if (errCodigo != null || errTitulo != null || errLocal != null) {
+            _uiState.update {
+                it.copy(
+                    errorCodigo = errCodigo,
+                    errorTitulo = errTitulo,
+                    errorLocal = errLocal
+                )
+            }
             return
         }
 
-        _uiState.update { it.copy(isLoading = true, error = null, mensaje = null) }
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                error = null,
+                mensaje = null,
+                errorCodigo = null,
+                errorTitulo = null,
+                errorLocal = null
+            )
+        }
 
         viewModelScope.launch {
             var creadaConExito = false

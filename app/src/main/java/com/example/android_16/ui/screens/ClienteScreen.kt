@@ -1,5 +1,6 @@
 package com.example.android_16.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -36,27 +38,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.android_16.model.Perfil
+import com.example.android_16.viewmodel.AuthViewModel
 import com.example.android_16.viewmodel.OrdenTrabajoViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClienteScreen(
     perfil: Perfil?,
+    authViewModel: AuthViewModel,
     ordenViewModel: OrdenTrabajoViewModel,
     onSeleccionarOrden: (String) -> Unit,
+    onRolActualizado: (String) -> Unit,
     onCerrarSesion: () -> Unit
 ) {
     val ordenes by ordenViewModel.ordenes.collectAsState()
     val uiState by ordenViewModel.uiState.collectAsState()
+    val authState by authViewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var soloPendientesFirma by remember { mutableStateOf(false) }
+    var mostrarEditarPerfil by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         ordenViewModel.sincronizarOrdenes()
     }
 
-    LaunchedEffect(uiState.error, uiState.mensaje) {
+    LaunchedEffect(uiState.error, uiState.mensaje, authState.mensaje, authState.error) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             ordenViewModel.limpiarMensajes()
@@ -65,6 +72,26 @@ fun ClienteScreen(
             snackbarHostState.showSnackbar(it)
             ordenViewModel.limpiarMensajes()
         }
+        authState.mensaje?.let {
+            snackbarHostState.showSnackbar(it)
+            authViewModel.limpiarMensajes()
+        }
+        authState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            authViewModel.limpiarMensajes()
+        }
+    }
+
+    if (mostrarEditarPerfil && perfil != null) {
+        EditarPerfilDialog(
+            perfil = perfil,
+            authViewModel = authViewModel,
+            onDismiss = { mostrarEditarPerfil = false },
+            onGuardado = { actualizado ->
+                mostrarEditarPerfil = false
+                onRolActualizado(actualizado.rol)
+            }
+        )
     }
 
     val ordenesVisibles = remember(ordenes, soloPendientesFirma) {
@@ -80,13 +107,16 @@ fun ClienteScreen(
                     Column {
                         Text("Portal Cliente", fontWeight = FontWeight.Bold)
                         Text(
-                            text = perfil?.nombre?.ifBlank { perfil.email } ?: "Cliente",
+                            text = "${perfil?.nombre?.ifBlank { perfil.email } ?: "Cliente"} · Cliente",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
                 actions = {
+                    IconButton(onClick = { mostrarEditarPerfil = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Editar perfil")
+                    }
                     IconButton(onClick = { ordenViewModel.sincronizarOrdenes() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Actualizar")
                     }
@@ -102,7 +132,7 @@ fun ClienteScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (uiState.isSyncing) {
+            AnimatedVisibility(visible = uiState.isSyncing) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 

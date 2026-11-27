@@ -2,16 +2,16 @@ package com.example.android_16.data.repository
 
 import com.example.android_16.data.local.SessionManager
 import com.example.android_16.data.remote.RetrofitClient
+import com.example.android_16.data.remote.SupabaseApiService
 import com.example.android_16.model.AuthRequest
 import com.example.android_16.model.Perfil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class AuthRepository(
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val api: SupabaseApiService = RetrofitClient.supabaseApi
 ) {
-    private val api = RetrofitClient.supabaseApi
-
     suspend fun login(email: String, password: String): Result<Perfil> = withContext(Dispatchers.IO) {
         try {
             val response = api.login(AuthRequest(email.trim(), password))
@@ -90,6 +90,50 @@ class AuthRepository(
             Result.success(perfilGuardado)
         } catch (e: Exception) {
             Result.failure(Exception("Error de conexión al registrar: ${e.localizedMessage}"))
+        }
+    }
+
+    suspend fun recuperarPassword(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = api.recuperarPassword(mapOf("email" to email.trim()))
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("No se pudo enviar el correo de recuperación (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Error de conexión al recuperar contraseña: ${e.localizedMessage}"))
+        }
+    }
+
+    suspend fun actualizarPerfil(nombre: String, rol: String): Result<Perfil> = withContext(Dispatchers.IO) {
+        try {
+            val token = sessionManager.obtenerToken()?.takeIf { it.isNotBlank() }
+                ?: return@withContext Result.failure(SesionExpiradaException())
+            val perfilActual = sessionManager.obtenerPerfil()
+                ?: return@withContext Result.failure(SesionExpiradaException())
+
+            val response = api.actualizarPerfil(
+                bearerToken = "Bearer $token",
+                idFilter = "eq.${perfilActual.id}",
+                cambios = mapOf(
+                    "nombre" to nombre.trim(),
+                    "rol" to rol
+                )
+            )
+
+            if (response.isSuccessful) {
+                val actualizado = response.body()?.firstOrNull()
+                    ?: perfilActual.copy(nombre = nombre.trim(), rol = rol)
+                sessionManager.guardarSesion(token, actualizado)
+                Result.success(actualizado)
+            } else if (response.code() == 401) {
+                Result.failure(SesionExpiradaException())
+            } else {
+                Result.failure(Exception("Error al actualizar perfil (${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Error de conexión al actualizar perfil: ${e.localizedMessage}"))
         }
     }
 

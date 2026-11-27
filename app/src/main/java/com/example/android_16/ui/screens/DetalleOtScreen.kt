@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +81,10 @@ fun DetalleOTScreen(
     val uiState by ordenViewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val esTecnico = perfil?.rol.equals("tecnico", ignoreCase = true)
+    val esOperativo = perfil?.esOperativo == true
+    val puedeEliminar = perfil?.puedeEliminarOrdenes == true
+    val puedeFirmar = perfil?.puedeFirmarOrdenes == true
+
     var mostrarDialogoEliminar by remember { mutableStateOf(false) }
     var fotoUriTemporal by remember { mutableStateOf<Uri?>(null) }
 
@@ -189,7 +194,7 @@ fun DetalleOTScreen(
                     }
                 },
                 actions = {
-                    if (esTecnico && orden != null) {
+                    if (puedeEliminar && orden != null) {
                         IconButton(onClick = { mostrarDialogoEliminar = true }) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
@@ -222,12 +227,14 @@ fun DetalleOTScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            if (uiState.isLoading) {
+            AnimatedVisibility(visible = uiState.isLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
@@ -270,14 +277,14 @@ fun DetalleOTScreen(
                 }
             }
 
-            if (esTecnico) {
+            if (esOperativo) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "Estado de la Orden",
+                            text = "Estado de la Orden (${perfil?.rolEnum?.etiqueta ?: "Operativo"})",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -298,7 +305,11 @@ fun DetalleOTScreen(
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize()
+            ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -362,7 +373,7 @@ fun DetalleOTScreen(
                         )
                     }
 
-                    if (esTecnico) {
+                    if (esOperativo) {
                         OutlinedButton(
                             onClick = {
                                 val tieneFine = ContextCompat.checkSelfPermission(
@@ -396,7 +407,11 @@ fun DetalleOTScreen(
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize()
+            ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -425,7 +440,7 @@ fun DetalleOTScreen(
                         )
                     }
 
-                    if (esTecnico) {
+                    if (esOperativo) {
                         OutlinedButton(
                             onClick = {
                                 val tieneCamara = ContextCompat.checkSelfPermission(
@@ -452,7 +467,7 @@ fun DetalleOTScreen(
                 }
             }
 
-            if (!esTecnico && !orden.firmadoCliente) {
+            if (puedeFirmar && !orden.firmadoCliente) {
                 Button(
                     onClick = { ordenViewModel.firmarOrdenComoCliente(orden) },
                     enabled = !uiState.isLoading,

@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -86,6 +89,10 @@ fun NuevaOTScreen(
     var procesandoFoto by remember { mutableStateOf(false) }
 
     val ocupado = uiState.isLoading || procesandoFoto
+
+    LaunchedEffect(Unit) {
+        ordenViewModel.limpiarErroresFormulario()
+    }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
@@ -176,12 +183,28 @@ fun NuevaOTScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             OutlinedTextField(
                 value = codigo,
-                onValueChange = { codigo = it },
+                onValueChange = {
+                    codigo = it
+                    ordenViewModel.limpiarErrorCampo("codigo")
+                },
                 label = { Text("Código OT *") },
+                trailingIcon = {
+                    if (uiState.errorCodigo != null) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                isError = uiState.errorCodigo != null,
+                supportingText = {
+                    uiState.errorCodigo?.let { Text(it) }
+                },
                 enabled = !uiState.isLoading,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -189,8 +212,24 @@ fun NuevaOTScreen(
 
             OutlinedTextField(
                 value = titulo,
-                onValueChange = { titulo = it },
+                onValueChange = {
+                    titulo = it
+                    ordenViewModel.limpiarErrorCampo("titulo")
+                },
                 label = { Text("Título del trabajo *") },
+                trailingIcon = {
+                    if (uiState.errorTitulo != null) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                isError = uiState.errorTitulo != null,
+                supportingText = {
+                    uiState.errorTitulo?.let { Text(it) }
+                },
                 enabled = !uiState.isLoading,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -198,8 +237,24 @@ fun NuevaOTScreen(
 
             OutlinedTextField(
                 value = local,
-                onValueChange = { local = it },
+                onValueChange = {
+                    local = it
+                    ordenViewModel.limpiarErrorCampo("local")
+                },
                 label = { Text("Local / Sucursal *") },
+                trailingIcon = {
+                    if (uiState.errorLocal != null) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                isError = uiState.errorLocal != null,
+                supportingText = {
+                    uiState.errorLocal?.let { Text(it) }
+                },
                 enabled = !uiState.isLoading,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -215,7 +270,11 @@ fun NuevaOTScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize()
+            ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -283,7 +342,11 @@ fun NuevaOTScreen(
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize()
+            ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -294,16 +357,18 @@ fun NuevaOTScreen(
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    if (fotoCapturadaUri != null) {
-                        AsyncImage(
-                            model = fotoCapturadaUri,
-                            contentDescription = "Vista previa evidencia",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(180.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        )
+                    AnimatedVisibility(visible = fotoCapturadaUri != null) {
+                        if (fotoCapturadaUri != null) {
+                            AsyncImage(
+                                model = fotoCapturadaUri,
+                                contentDescription = "Vista previa evidencia",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+                        }
                     }
 
                     OutlinedButton(

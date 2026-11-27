@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.android_16.model.RolUsuario
 import com.example.android_16.ui.screens.ClienteScreen
 import com.example.android_16.ui.screens.DetalleOTScreen
 import com.example.android_16.ui.screens.LoginScreen
@@ -29,6 +30,14 @@ sealed class Screen(val route: String) {
     }
 }
 
+private fun destinoPorRol(rol: String?): String {
+    return if (RolUsuario.fromClave(rol) == RolUsuario.CLIENTE) {
+        Screen.Cliente.route
+    } else {
+        Screen.Tecnico.route
+    }
+}
+
 @Composable
 fun AppNavigation(
     authViewModel: AuthViewModel = viewModel(),
@@ -40,11 +49,7 @@ fun AppNavigation(
 
     val startDestination = remember {
         if (authState.isLoggedIn && authState.perfil != null) {
-            if (authState.perfil!!.rol.equals("tecnico", ignoreCase = true)) {
-                Screen.Tecnico.route
-            } else {
-                Screen.Cliente.route
-            }
+            destinoPorRol(authState.perfil!!.rol)
         } else {
             Screen.Login.route
         }
@@ -73,11 +78,7 @@ fun AppNavigation(
             LoginScreen(
                 authViewModel = authViewModel,
                 onLoginSuccess = { rol ->
-                    val destino = if (rol.equals("tecnico", ignoreCase = true)) {
-                        Screen.Tecnico.route
-                    } else {
-                        Screen.Cliente.route
-                    }
+                    val destino = destinoPorRol(rol)
                     navController.navigate(destino) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                         launchSingleTop = true
@@ -89,12 +90,22 @@ fun AppNavigation(
         composable(Screen.Tecnico.route) {
             TecnicoScreen(
                 perfil = authState.perfil,
+                authViewModel = authViewModel,
                 ordenViewModel = ordenViewModel,
                 onNuevaOrden = {
                     navController.navigate(Screen.NuevaOT.route)
                 },
                 onSeleccionarOrden = { ordenId ->
                     navController.navigate(Screen.DetalleOT.createRoute(ordenId))
+                },
+                onRolActualizado = { nuevoRol ->
+                    val destino = destinoPorRol(nuevoRol)
+                    if (destino != Screen.Tecnico.route) {
+                        navController.navigate(destino) {
+                            popUpTo(Screen.Tecnico.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 },
                 onCerrarSesion = { cerrarSesionYVolverALogin(null) }
             )
@@ -103,9 +114,19 @@ fun AppNavigation(
         composable(Screen.Cliente.route) {
             ClienteScreen(
                 perfil = authState.perfil,
+                authViewModel = authViewModel,
                 ordenViewModel = ordenViewModel,
                 onSeleccionarOrden = { ordenId ->
                     navController.navigate(Screen.DetalleOT.createRoute(ordenId))
+                },
+                onRolActualizado = { nuevoRol ->
+                    val destino = destinoPorRol(nuevoRol)
+                    if (destino != Screen.Cliente.route) {
+                        navController.navigate(destino) {
+                            popUpTo(Screen.Cliente.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 },
                 onCerrarSesion = { cerrarSesionYVolverALogin(null) }
             )

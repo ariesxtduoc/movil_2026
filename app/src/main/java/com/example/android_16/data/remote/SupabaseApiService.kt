@@ -30,6 +30,11 @@ interface SupabaseApiService {
         @Body request: AuthRequest
     ): Response<AuthResponse>
 
+    @POST("auth/v1/recover")
+    suspend fun recuperarPassword(
+        @Body body: Map<String, String>
+    ): Response<ResponseBody>
+
     // --- PERFILES ---
     @GET("rest/v1/perfiles")
     suspend fun obtenerPerfil(
@@ -42,6 +47,14 @@ interface SupabaseApiService {
     suspend fun crearPerfil(
         @Header("Authorization") bearerToken: String,
         @Body perfil: Perfil,
+        @Header("Prefer") prefer: String = "return=representation"
+    ): Response<List<Perfil>>
+
+    @PATCH("rest/v1/perfiles")
+    suspend fun actualizarPerfil(
+        @Header("Authorization") bearerToken: String,
+        @Query("id") idFilter: String,
+        @Body cambios: Map<String, @JvmSuppressWildcards Any?>,
         @Header("Prefer") prefer: String = "return=representation"
     ): Response<List<Perfil>>
 
